@@ -5,29 +5,30 @@ This is a quick project that compares a custom "truncateStringify" function to t
 ### Usage
 
 1. Make sure [Bun](https://bun.sh/) is installed
-2. Place your data in `data.json`
-3. Run the script:
+2. Run the script:
    ```bash
-   bun run index.js
+   bun run matrix.ts
    ```
-4. Check your console for timing stats
+3. Check your console for timing stats
 
 ### Results
-The provided JSON file contains 1000 objects with 1kb of base64 encoded data each.
+Each function is tested with different kinds of files. Some are large, some are small. Refer to the
+files in the repo. The following results are with a limit of 10kb
 ```
-Custom truncateStringify Stats:
-  Min:     0.0530 ms
-  Max:     0.5978 ms
-  Avg:     0.0748 ms
-  StdDev:  0.0282 ms
-
-Default JSON.stringify Stats:
-  Min:     0.1353 ms
-  Max:     1.4020 ms
-  Avg:     0.2159 ms
-  StdDev:  0.1514 ms
+Matrix of average runtimes (ms) with relative performance:
+┌─────────────────────────┬───────────────────┬───────────────────┬────────────────────┐
+│                         │ JSON.stringify    │ truncateStringify │ stringifyWithLimit │
+├─────────────────────────┼───────────────────┼───────────────────┼────────────────────┤
+│ many-large-strings.json │ 0.3603 ms (1.00x) │ 0.0827 ms (0.23x) │ 0.0164 ms (0.05x)  │
+│ many-small-strings.json │ 1.0136 ms (1.00x) │ 4.1753 ms (4.12x) │ 1.2037 ms (1.19x)  │
+│   small-collection.json │ 0.0044 ms (1.00x) │ 0.0184 ms (4.19x) │ 0.0322 ms (7.31x)  │
+│       single-digit.json │ 0.0001 ms (1.00x) │ 0.0005 ms (4.57x) │ 0.0002 ms (1.55x)  │
+│       small-string.json │ 0.0001 ms (1.00x) │ 0.0004 ms (5.62x) │ 0.0007 ms (10.11x) │
+└─────────────────────────┴───────────────────┴───────────────────┴────────────────────┘
 ```
-In this particular instance, we observe a ~3x speed increase by truncating the JSON.
+The stringifyWithLimit function is only faster for the first case, which contains 1kb large strings
+inside of a collection. Simply stringifying the result and then taking the slice of 10kb is fastest
+in most situations.
 
 ### Config
 

@@ -1,33 +1,12 @@
+import { truncateStringify, stringifyWithLimit } from "./lib";
+
 const file = Bun.file("data.json");
 const json = await file.json();
 
-const MAX_SIZE = 10000;
 
-function truncateStringify(data) {
-  let acc = 0;
-  const truncated = JSON.stringify(data, (key, value) => {
-    if (typeof value === 'number') {
-      acc += 8;
-    }
-    if (typeof value === 'string') {
-      acc += value.length;
-    }
-    if (acc < MAX_SIZE) {
-      return value;
-    }
-    // Return empty object once max size is reached
-    if (typeof value === 'object') {
-      return {}
-    }
-    // Returning undefined deletes the key
-    // This does not work for objects
-    return undefined
-  });
-  return truncated;
-}
 
 // Utility to compute stats
-function computeStats(times) {
+function computeStats(times: number[]) {
   const min = Math.min(...times);
   const max = Math.max(...times);
   const avg = times.reduce((a, b) => a + b, 0) / times.length;
@@ -38,7 +17,7 @@ function computeStats(times) {
 }
 
 // Runs the given function repeatedly and returns an array of timings
-function runPerformanceTest(fn, data, iterations = 100) {
+function runPerformanceTest(fn: (arg0: object) => any, data: object, iterations = 100) {
   const times = [];
   for (let i = 0; i < iterations; i++) {
     const start = performance.now();
@@ -50,32 +29,40 @@ function runPerformanceTest(fn, data, iterations = 100) {
 }
 
 // Warm up (optional, can help if there's overhead from JIT, GC, etc.)
-const result = truncateStringify(json);
+truncateStringify(json);
 JSON.stringify(json);
+stringifyWithLimit(json);
 
 // Number of times to run each test
 const ITERATIONS = 1000;
 
 // Collect times
 const defaultTimes = runPerformanceTest(JSON.stringify, json, ITERATIONS);
-const customTimes = runPerformanceTest(truncateStringify, json, ITERATIONS);
-
-Bun.write('out.json', result)
+const customTimes1 = runPerformanceTest(truncateStringify, json, ITERATIONS);
+const customTimes2 = runPerformanceTest(stringifyWithLimit, json, ITERATIONS);
 
 // Compute stats
-const customStats = computeStats(customTimes);
 const defaultStats = computeStats(defaultTimes);
+const customStats1 = computeStats(customTimes1);
+const customStats2 = computeStats(customTimes2);
 
 // Display results
-console.log("Custom truncateStringify Stats:");
-console.log(`  Min:     ${customStats.min.toFixed(4)} ms`);
-console.log(`  Max:     ${customStats.max.toFixed(4)} ms`);
-console.log(`  Avg:     ${customStats.avg.toFixed(4)} ms`);
-console.log(`  StdDev:  ${customStats.stdDev.toFixed(4)} ms\n`);
-
 console.log("Default JSON.stringify Stats:");
 console.log(`  Min:     ${defaultStats.min.toFixed(4)} ms`);
 console.log(`  Max:     ${defaultStats.max.toFixed(4)} ms`);
 console.log(`  Avg:     ${defaultStats.avg.toFixed(4)} ms`);
 console.log(`  StdDev:  ${defaultStats.stdDev.toFixed(4)} ms\n`);
+
+console.log("Custom truncateStringify Stats:");
+console.log(`  Min:     ${customStats1.min.toFixed(4)} ms`);
+console.log(`  Max:     ${customStats1.max.toFixed(4)} ms`);
+console.log(`  Avg:     ${customStats1.avg.toFixed(4)} ms`);
+console.log(`  StdDev:  ${customStats1.stdDev.toFixed(4)} ms\n`);
+
+console.log("Custom stringifyWithLimit Stats:");
+console.log(`  Min:     ${customStats2.min.toFixed(4)} ms`);
+console.log(`  Max:     ${customStats2.max.toFixed(4)} ms`);
+console.log(`  Avg:     ${customStats2.avg.toFixed(4)} ms`);
+console.log(`  StdDev:  ${customStats2.stdDev.toFixed(4)} ms\n`);
+
 
