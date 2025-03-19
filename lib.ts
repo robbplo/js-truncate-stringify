@@ -1,3 +1,7 @@
+import { JsonStreamStringify } from 'json-stream-stringify';
+import { console } from 'node:inspector/promises';
+import { Writable} from "node:stream";
+
 const MAX_SIZE = 10000;
 
 export function nativeStringify(data: object, maxSize = MAX_SIZE) {
@@ -222,3 +226,127 @@ export function stringifyWithLimit(value: object, maxSize = MAX_SIZE) {
   return output;
 }
 
+function streamerReplacer(key: string, value: any) {
+  if (typeof value === 'string') {
+    return value.slice(0, 256) + '...truncated..."';
+  }
+  return value
+}
+
+
+// async function* outWrite(source: any) {
+//   console.log(source)
+// }
+
+// class MyWriter extends Writable {
+//   remaining = 0;
+//   bufferx = "";
+
+//   write(chunk: unknown, encoding?: unknown, callback?: unknown): boolean {
+//     if (this.remaining < 0) {
+//       // console.log(this.buffer)
+//       console.log('done')
+//       // no write
+//       return true
+//     } else {
+//       let size  = (chunk as any).length;
+//       this.remaining -= size;
+  
+//       this.bufferx += chunk as string;
+  
+//       return true
+//     }
+//   }
+// }
+
+// export async function stringifyWithStreamer(value: any, maxSize = MAX_SIZE) {
+//   // let writer = JSONStream.stringify();
+
+//   // writer.write("hallo")
+//   // writer.write("hallo")
+//   // writer.write("hallo")
+//   // writer.write("hallo")
+//   // writer.write("hallo")
+
+//   // console.log(writer.flush())
+//   const outWrite = new MyWriter();
+//   outWrite.remaining = 1000;
+//   outWrite.on('pipe', (src) => {
+//     console.log('Something is piping into the writer.');
+//   });
+
+//   const going = new JsonStreamStringify(value, streamerReplacer)
+//   going.on('data', (x) => {
+//     // console.log(x)
+
+//   })
+//   // going.pipe(process.stdout);
+//   // going.pipe(outWrite)
+
+//   // console.log(outWrite)
+//   let out: string = await new Promise(resolve => {
+//     outWrite.on('finish', () => {
+//       resolve(outWrite.bufferx)
+//     })
+//     going.pipe(outWrite)
+//   })
+
+//   console.log(out)
+
+//   return out
+// }
+
+function scoreType(value: any): number {
+  if (typeof value === 'number') {
+    return 8;
+  } else if (typeof value ==='string') {
+    return 2 + value.length;
+  } else if (typeof value ==='boolean') {
+    return 4;
+  } else if (Array.isArray(value)) {
+    return NaN;
+  } else if (typeof value === 'object') {
+    return NaN;
+  } else if (value === null) {
+    return 4;
+  } else if (typeof value === 'undefined') {
+    return 0;
+  } else {
+    throw new Error('Unknown type');
+  }
+}
+
+type Context = {
+  remaining: number;
+}
+
+function _stringifyUpdateObject(value: Record<string, any>, context: Context): Record<string, any> {
+  let out = Object.entries(value).reduce((acc, [key, val]) => {
+    if (typeof val === 'object') {
+      val = _stringifyUpdateObject(val, context)
+    } else {
+      let score = scoreType(key) + scoreType(val);
+      if (score) {
+        context.remaining -= score;
+        if (context.remaining < 0) {
+          return acc
+        }
+      }
+    }
+    acc[key] = val;
+    return acc;
+  }, {} as Record<string, any>);
+
+
+  // console.log(out)
+  return out
+}
+
+export function stringifyUpdateObject(value: Record<string, any>, maxSize = MAX_SIZE) {
+  // console.log(JSON.stringify(value).length)
+  let out = _stringifyUpdateObject(value, {remaining: maxSize})
+
+  // console.log(out)
+  // console.log(JSON.stringify(out))
+  return JSON.stringify(out)
+}

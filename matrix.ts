@@ -1,4 +1,4 @@
-import { nativeStringify, truncateStringify, stringifyWithLimit, nativeStringifyClosed } from "./lib";
+import { nativeStringify, truncateStringify, stringifyWithLimit, nativeStringifyClosed, stringifyUpdateObject } from "./lib";
 
 // Number of iterations per test
 const ITERATIONS = 300;
@@ -31,7 +31,8 @@ const functionList = [
   { name: "JSON.stringify", fn: nativeStringify },
   { name: "JSON.stringify closed", fn: nativeStringifyClosed },
   { name: "truncateStringify", fn: truncateStringify },
-  { name: "stringifyWithLimit", fn: stringifyWithLimit }
+  { name: "stringifyWithLimit", fn: stringifyWithLimit },
+  { name: "stringifyUpdateObject", fn: stringifyUpdateObject },
 ];
 
 // List of files to benchmark (add as many as needed)
