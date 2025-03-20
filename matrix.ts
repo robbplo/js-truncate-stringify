@@ -42,6 +42,7 @@ const fileNames = [
   "small-collection.json",
   "single-digit.json",
   "small-string.json",
+  "strings-array.json",
 ];
 
 // Object to store results in a matrix form (file -> function -> formatted average runtime)

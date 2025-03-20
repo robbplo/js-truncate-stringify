@@ -4,6 +4,8 @@ import { Writable} from "node:stream";
 
 const MAX_SIZE = 10000;
 
+type JSONValue = string | number | boolean | null | Record<string, JSONValue> | JSONValue[];
+
 export function nativeStringify(data: object, maxSize = MAX_SIZE) {
   return JSON.stringify(data).slice(0, maxSize)
 }
@@ -303,50 +305,103 @@ function scoreType(value: any): number {
     return 2 + value.length;
   } else if (typeof value ==='boolean') {
     return 4;
-  } else if (Array.isArray(value)) {
-    return NaN;
-  } else if (typeof value === 'object') {
-    return NaN;
-  } else if (value === null) {
+  }  else if (value === null) {
     return 4;
   } else if (typeof value === 'undefined') {
     return 0;
-  } else {
-    throw new Error('Unknown type');
   }
+  return NaN;
 }
 
 type Context = {
   remaining: number;
 }
 
-function _stringifyUpdateObject(value: Record<string, any>, context: Context): Record<string, any> {
-  let out = Object.entries(value).reduce((acc, [key, val]) => {
-    if (typeof val === 'object') {
-      val = _stringifyUpdateObject(val, context)
-    } else {
-      let score = scoreType(key) + scoreType(val);
-      if (score) {
-        context.remaining -= score;
+const EMPTY_RECORD = Symbol('empty-record');
+const EMPTY_VALUE = Symbol('empty-value');
+type Accumulator = Record<string, JSONValue> | typeof EMPTY_RECORD | typeof EMPTY_VALUE
+
+function emptyTokenReplacer(_key: string, value: unknown) {
+  if (Array.isArray(value)) {
+    let emptyRecordsCount = value.reduce((acc, item) => acc += item === EMPTY_RECORD, 0)
+    let emptyValueCount = value.reduce((acc, item) => acc += item === EMPTY_VALUE, 0)
+    value = value.filter(item => item !== EMPTY_RECORD && item !== EMPTY_VALUE);
+    if (emptyRecordsCount > 0 && Array.isArray(value)) {
+      value.push({__truncatedRecords: emptyRecordsCount});
+    }
+    if (emptyValueCount > 0 && Array.isArray(value)) {
+      value.push({__truncatedItems: emptyValueCount});
+    }
+
+    return value
+  }
+
+  return value
+}
+
+function _stringifyUpdateObject(value: JSONValue, context: Context): JSONValue {
+  if (Array.isArray(value)) {
+    throw new Error("ARRAY!>!")
+  }
+  if (typeof value === 'object' && value !== null) {
+    let out = Object.entries(value).reduce((acc, [key, val]) => {
+      if (Array.isArray(val)) {
+        val = val.map((x) => _stringifyUpdateObject(x, context))
+      } else if (typeof val === 'object') {
+        val = _stringifyUpdateObject(val, context)
+      } else {
         if (context.remaining < 0) {
           return acc
         }
+        let score = scoreType(key) + scoreType(val);
+        // do we want to truncate large strings still?
+        if (score) {
+          context.remaining -= score;
+          if (context.remaining < 0) {
+            if (typeof acc === 'object') {
+              acc["__truncated"] = true
+              return acc
+            } else {
+              return acc
+            }
+          }
+        }
       }
+      if (acc === EMPTY_RECORD || acc === EMPTY_VALUE) {
+        acc = {}
+      }
+      acc[key] = val;
+      return acc;
+    }, EMPTY_RECORD as Accumulator);
+    return out
+  }
+
+  if (context.remaining < 0) {
+    return EMPTY_VALUE
+  }
+  let score = scoreType(value);
+  if (score) {
+    context.remaining -= score;
+    let OVERFLOW_SLACK = 100
+    if(context.remaining < OVERFLOW_SLACK && typeof value === 'string') {
+      value = value.slice(0, -context.remaining) + '...truncated..."';
     }
-    acc[key] = val;
-    return acc;
-  }, {} as Record<string, any>);
+  }
 
-
-  // console.log(out)
-  return out
+  return value
 }
 
-export function stringifyUpdateObject(value: Record<string, any>, maxSize = MAX_SIZE) {
+export function stringifyUpdateObject(value: JSONValue, maxSize = MAX_SIZE) {
+  let context = {remaining: maxSize}
+  let out;
   // console.log(JSON.stringify(value).length)
-  let out = _stringifyUpdateObject(value, {remaining: maxSize})
+  if (Array.isArray(value)) {
+    out = value.map((x) => _stringifyUpdateObject(x, context))
+  } else {
+    out = _stringifyUpdateObject(value, context)
+  }
 
   // console.log(out)
   // console.log(JSON.stringify(out))
-  return JSON.stringify(out)
+  return JSON.stringify(out, emptyTokenReplacer)
 }
